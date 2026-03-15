@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expires_minutes: int = 60 * 24 * 7  # 7 天
 
+    # 管理后台：请求头 X-Admin-Key 需与此一致才可访问 /api/admin/*
+    admin_secret: Optional[str] = None
+
     # OpenRouter（优先）：统一接口切换模型，见 https://openrouter.ai/docs
     openrouter_api_key: Optional[str] = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"

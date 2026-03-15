@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 
 from .config import get_settings
 from .database import Base, engine
-from . import routers_auth, routers_chat, routers_messages
+from . import routers_auth, routers_chat, routers_messages, routers_admin
 
 
 logger = logging.getLogger(__name__)
@@ -73,4 +73,5 @@ async def on_startup() -> None:
 app.include_router(routers_auth.router)
 app.include_router(routers_messages.router)
 app.include_router(routers_chat.router)
+app.include_router(routers_admin.router)
 

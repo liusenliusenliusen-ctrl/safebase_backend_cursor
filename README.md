@@ -28,6 +28,7 @@ pip install -r requirements.txt
 
 - `DATABASE_URL`：例如 `postgresql+asyncpg://user:pass@localhost:5432/cptsd`
 - `JWT_SECRET_KEY`、`JWT_ALGORITHM`
+- `ADMIN_SECRET`（可选）：管理后台密钥，请求头 `X-Admin-Key` 与此一致时可访问 `/api/admin/*`（用户列表、用户详情）
 
 **大模型与向量（二选一）：**
 

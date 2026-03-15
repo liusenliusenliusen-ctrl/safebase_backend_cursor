@@ -63,3 +63,23 @@ class AnchorOut(BaseModel):
     initial_thought: Optional[str] = None
     current_thought: Optional[str] = None
 
+
+# ---------- 管理后台 ----------
+class AdminUserListItem(BaseModel):
+    id: str
+    username: str
+    created_at: datetime
+    message_count: int = 0
+    summary_count: int = 0
+    anchor_count: int = 0
+
+
+class AdminUserDetail(BaseModel):
+    user: UserOut
+    profile_content: Optional[str] = None
+    profile_updated_at: Optional[datetime] = None
+    message_count: int = 0
+    summary_count: int = 0
+    anchor_count: int = 0
+    recent_messages: list[MessageBase] = []
+

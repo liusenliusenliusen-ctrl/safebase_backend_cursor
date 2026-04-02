@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     ark_chat_model: str = "ep-XXXXXXXX"
     ark_embedding_model: str = "text-embedding-v2"
 
+    # Prompt 模板（仅影响“prompt 文本”，不影响向量/模型选择）
+    # - 可选：指定目录后，若存在同名文件（例如 chat.txt），将优先从文件加载覆盖默认模板
+    prompt_template_dir: Optional[str] = None
+    # - 是否开启热加载（默认关闭；通常需要重启服务，或使用 prompt-debug 接口的 reload 参数）
+    prompt_hot_reload: bool = False
+
     class Config:
         env_file = str(_ENV_FILE)
         env_file_encoding = "utf-8"

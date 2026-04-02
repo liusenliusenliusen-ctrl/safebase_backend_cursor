@@ -45,6 +45,26 @@ class ChatRequest(BaseModel):
     message: str
 
 
+class AccountDeleteRequest(BaseModel):
+    """注销账号时需再次验证密码，防止误触与盗用 token。"""
+
+    password: str = Field(min_length=6, max_length=128)
+
+
+class PromptDebugRequest(ChatRequest):
+    # 是否返回构成 prompt 的各个片段（会包含用户内容，注意隐私）
+    include_components: bool = False
+    # 是否强制从模板文件重新加载（通常需配合 PROMPT_TEMPLATE_DIR）
+    reload_templates: bool = False
+
+
+class PromptDebugResponse(BaseModel):
+    template_name: str
+    prompt: str
+    # 可选：返回 profile/摘要/锚点等变量值，便于你对照调试
+    components: Optional[dict[str, str]] = None
+
+
 class ProfileOut(BaseModel):
     content: str
     updated_at: datetime

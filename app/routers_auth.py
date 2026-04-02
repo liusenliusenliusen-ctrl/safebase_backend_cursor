@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from uuid import uuid4
 
 from .database import get_db
 from .models import User, Profile
-from .schemas import UserCreate, UserOut, Token
+from .schemas import AccountDeleteRequest, UserCreate, UserOut, Token
 from .security import hash_password, verify_password, create_access_token
 from .deps import get_current_user
 
@@ -62,4 +62,29 @@ async def login(data: UserCreate, db: AsyncSession = Depends(get_db)) -> Token:
 @router.get("/me", response_model=UserOut)
 async def me(current_user: UserOut = Depends(get_current_user)) -> UserOut:
     return current_user
+
+
+@router.post("/delete-account")
+async def delete_account(
+    data: AccountDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user),
+) -> dict[str, bool]:
+    """永久删除当前登录用户及其关联数据（画像、消息、摘要、锚点等，依赖 DB 外键 CASCADE）。"""
+    stmt = select(User).where(User.id == current_user.id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+        )
+    if not verify_password(data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect password",
+        )
+    await db.execute(delete(User).where(User.id == user.id))
+    await db.commit()
+    return {"ok": True}
 

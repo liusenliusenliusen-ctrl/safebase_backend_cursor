@@ -112,7 +112,25 @@ async def _stream_chat_openrouter(prompt: str) -> AsyncGenerator[str, None]:
             ) as resp:
                 if resp.status_code == 401:
                     _raise_auth_error("OpenRouter")
-                resp.raise_for_status()
+                if resp.status_code >= 400:
+                    err_raw = await resp.aread()
+                    err_text = err_raw.decode("utf-8", errors="replace")[:4000]
+                    logger.error(
+                        "OpenRouter chat/completions HTTP %s model=%s body=%s",
+                        resp.status_code,
+                        settings.openrouter_chat_model,
+                        err_text,
+                    )
+                    from fastapi import HTTPException
+
+                    raise HTTPException(
+                        status_code=502,
+                        detail=(
+                            f"OpenRouter 返回 HTTP {resp.status_code}（模型 {settings.openrouter_chat_model}）。"
+                            "请核对 openrouter.ai 控制台中的模型 ID、账户余额与 Key 权限；"
+                            f"上游摘要：{err_text[:400]}"
+                        ),
+                    )
                 buffer = ""
                 async for chunk in resp.aiter_text():
                     buffer += chunk

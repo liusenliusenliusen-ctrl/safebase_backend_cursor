@@ -10,7 +10,8 @@ from .database import get_db
 from .deps import get_current_user
 from .llm import get_embedding, stream_chat_completion
 from .models import Anchor, Message, Profile, Summary, User
-from .schemas import ChatRequest, UserOut
+from .prompting import render_prompt
+from .schemas import ChatRequest, PromptDebugRequest, PromptDebugResponse, UserOut
 
 
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -83,25 +84,123 @@ async def build_memory_context(
             f"当前看法：{row_anchor.current_thought or ''}\n"
         )
 
-    prompt = f"""你是一位温柔、稳定、具备 CPTSD 专业知识的长期疗愈伴侣。
-请使用下列信息来理解用户，并进行有共情的回复。避免生硬的心理学术语，多用具象、轻柔的表达。
+    return render_prompt(
+        "chat",
+        {
+            "profile_text": profile_text,
+            "short_ctx": short_ctx,
+            "summaries_text": summaries_text,
+            "anchors_text": anchors_text,
+            "user_message": user_message,
+        },
+    )
 
-## 用户静态画像
-{profile_text}
 
-## 近期对话片段
-{short_ctx}
+async def build_chat_prompt_debug_components(
+    db: AsyncSession,
+    user_id: str,
+    user_message: str,
+) -> dict[str, str]:
+    # 画像
+    stmt_profile = select(Profile).where(Profile.user_id == user_id)
+    res_profile = await db.execute(stmt_profile)
+    profile = res_profile.scalar_one_or_none()
+    profile_text = profile.content if profile else "# 核心画像\n尚未生成\n"
 
-## 相关历史摘要（部分）
-{summaries_text}
+    # 近期对话（最近 30 条），并显式附加「本次用户输入」（用于模拟 chat 里短上下文包含当前消息的行为）
+    stmt_msgs = (
+        select(Message)
+        .where(Message.user_id == user_id)
+        .order_by(Message.created_at.desc())
+        .limit(30)
+    )
+    res_msgs = await db.execute(stmt_msgs)
+    msgs = list(reversed(res_msgs.scalars().all()))
+    short_ctx_lines: list[str] = []
+    for m in msgs:
+        role = "用户" if m.role == "user" else "AI"
+        short_ctx_lines.append(f"{role}: {m.content}")
+    short_ctx_lines.append(f"用户: {user_message}")
+    short_ctx = "\n".join(short_ctx_lines)
 
-## 重要事件锚点（部分）
-{anchors_text}
+    # 中层摘要与锚点检索
+    emb = await get_embedding(user_message)
 
-## 本次用户输入
-{user_message}
-"""
-    return prompt
+    # 2 条相关日摘要
+    summaries_text = ""
+    stmt_summaries = text(
+        """
+        SELECT id, type, content, summary_date
+        FROM summaries
+        WHERE user_id = :user_id AND type = 'daily' AND embedding IS NOT NULL
+        ORDER BY embedding <-> :embedding
+        LIMIT 2
+        """
+    ).bindparams(bindparam("embedding", type_=Vector(2048)))
+    res_summaries = await db.execute(stmt_summaries, {"user_id": user_id, "embedding": emb})
+    rows_summaries = res_summaries.fetchall()
+    for row in rows_summaries:
+        summaries_text += f"- {row.summary_date}: {row.content}\n"
+
+    # 1 条相关锚点
+    anchors_text = ""
+    stmt_anchors = text(
+        """
+        SELECT event_name, initial_thought, current_thought
+        FROM anchors
+        WHERE user_id = :user_id AND embedding IS NOT NULL
+        ORDER BY embedding <-> :embedding
+        LIMIT 1
+        """
+    ).bindparams(bindparam("embedding", type_=Vector(2048)))
+    res_anchors = await db.execute(stmt_anchors, {"user_id": user_id, "embedding": emb})
+    row_anchor = res_anchors.fetchone()
+    if row_anchor:
+        anchors_text = (
+            f"事件：{row_anchor.event_name}\n"
+            f"最初看法：{row_anchor.initial_thought or ''}\n"
+            f"当前看法：{row_anchor.current_thought or ''}\n"
+        )
+
+    return {
+        "profile_text": profile_text,
+        "short_ctx": short_ctx,
+        "summaries_text": summaries_text,
+        "anchors_text": anchors_text,
+        "user_message": user_message,
+    }
+
+
+@router.post("/chat/prompt-debug", response_model=PromptDebugResponse)
+async def prompt_debug(
+    body: PromptDebugRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user),
+):
+    if body.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User ID mismatch",
+        )
+
+    # 确认用户存在（若已被清库等，返回 401 让前端清 token 并跳转登录）
+    stmt_user = select(User).where(User.id == body.user_id)
+    res_user = await db.execute(stmt_user)
+    if res_user.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    components = await build_chat_prompt_debug_components(db, body.user_id, body.message)
+    prompt = render_prompt(
+        "chat",
+        components,
+        reload=body.reload_templates,
+    )
+
+    return PromptDebugResponse(
+        template_name="chat",
+        prompt=prompt,
+        components=components if body.include_components else None,
+    )
 
 
 @router.post("/chat")

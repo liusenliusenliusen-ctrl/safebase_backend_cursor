@@ -84,6 +84,32 @@ class AnchorOut(BaseModel):
     current_thought: Optional[str] = None
 
 
+# ---------- 日记 ----------
+class DiaryOut(BaseModel):
+    id: int
+    title: str
+    content: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class DiaryCreate(BaseModel):
+    title: str = Field(default="", max_length=256)
+    content: str = Field(min_length=1)
+
+
+class DiaryUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=256)
+    content: Optional[str] = Field(default=None, min_length=1)
+
+
+class DiaryListResponse(BaseModel):
+    items: list[DiaryOut]
+    total: int
+    page: int
+    page_size: int
+
+
 # ---------- 管理后台 ----------
 class AdminUserListItem(BaseModel):
     id: str

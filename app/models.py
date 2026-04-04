@@ -104,6 +104,27 @@ class Summary(Base):
     )
 
 
+class DiaryEntry(Base):
+    """用户日记：按用户隔离，删除用户时级联删除。"""
+
+    __tablename__ = "diary_entries"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    title: Mapped[str] = mapped_column(String(256), default="")
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
 class Anchor(Base):
     __tablename__ = "anchors"
 

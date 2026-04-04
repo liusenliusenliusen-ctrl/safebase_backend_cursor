@@ -70,7 +70,7 @@ async def delete_account(
     db: AsyncSession = Depends(get_db),
     current_user: UserOut = Depends(get_current_user),
 ) -> dict[str, bool]:
-    """永久删除当前登录用户及其关联数据（画像、消息、摘要、锚点等，依赖 DB 外键 CASCADE）。"""
+    """永久删除当前登录用户及其关联数据（画像、消息、日记、摘要、锚点等，依赖 DB 外键 CASCADE）。"""
     stmt = select(User).where(User.id == current_user.id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()

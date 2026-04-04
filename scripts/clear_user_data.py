@@ -21,12 +21,13 @@ load_dotenv()
 async def run(keep_users: bool) -> None:
     from sqlalchemy import delete, select
     from app.database import AsyncSessionLocal
-    from app.models import Anchor, Message, Profile, Summary, User
+    from app.models import Anchor, DiaryEntry, Message, Profile, Summary, User
 
     async with AsyncSessionLocal() as db:
         # 按依赖顺序删除（子表先删）
         if keep_users:
             await db.execute(delete(Anchor))
+            await db.execute(delete(DiaryEntry))
             await db.execute(delete(Summary))
             await db.execute(delete(Message))
             # 重置画像为默认内容
@@ -35,9 +36,10 @@ async def run(keep_users: bool) -> None:
             for p in profiles:
                 p.content = default
             await db.commit()
-            print("已清空：anchors, summaries, messages；已重置所有 profile。用户账号保留。")
+            print("已清空：anchors, diary_entries, summaries, messages；已重置所有 profile。用户账号保留。")
         else:
             await db.execute(delete(Anchor))
+            await db.execute(delete(DiaryEntry))
             await db.execute(delete(Summary))
             await db.execute(delete(Message))
             await db.execute(delete(Profile))

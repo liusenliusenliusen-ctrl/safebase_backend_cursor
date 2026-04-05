@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .database import get_db
+from .deps import get_current_user
 from .models import Message, User
-from .schemas import MessageBase, MessageListResponse
+from .schemas import MessageBase, MessageListResponse, UserOut
 
 
 router = APIRouter(prefix="/api/messages", tags=["messages"])
@@ -45,4 +46,25 @@ async def list_messages(
         for m in rows_sorted
     ]
     return MessageListResponse(messages=messages, hasMore=has_more)
+
+
+@router.delete("/last-user", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_last_user_message(
+    db: AsyncSession = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user),
+) -> Response:
+    """删除当前用户最近一条用户消息（用于前端「停止生成」时撤销本轮已落库的用户输入）。"""
+    stmt = (
+        select(Message)
+        .where(Message.user_id == current_user.id, Message.role == "user")
+        .order_by(Message.created_at.desc())
+        .limit(1)
+    )
+    res = await db.execute(stmt)
+    msg = res.scalar_one_or_none()
+    if msg is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No user message")
+    await db.execute(delete(Message).where(Message.id == msg.id))
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 

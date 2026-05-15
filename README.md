@@ -14,7 +14,7 @@ FastAPI 服务：用户认证（JWT）、流式对话、长期记忆表结构、
 - FastAPI
 - PostgreSQL + **pgvector**
 - SQLAlchemy 2.x（异步）
-- 大模型与向量：**OpenRouter**（推荐）或 **火山方舟**
+- 大模型与向量：**OpenRouter**（对话与 embedding 均走该网关）
 - Celery + Redis（定时摘要、画像、锚点等）
 
 ## 本地运行
@@ -25,16 +25,20 @@ FastAPI 服务：用户认证（JWT）、流式对话、长期记忆表结构、
 pip install -r requirements.txt
 ```
 
-2. 环境变量（`.env` 示例）：
+2. 环境变量：可复制仓库根目录 **`.env.example`** 为 `.env` 后修改。常用项：
 
 - `DATABASE_URL`：异步连接串，例如 `postgresql+asyncpg://USER:PASS@HOST:5432/postgres`（可为 Supabase 直连；注意与池化/IPv6 限制）
 - `JWT_SECRET_KEY`、`JWT_ALGORITHM`
 - `ADMIN_SECRET`（可选）：与请求头 `X-Admin-Key` 一致时可访问 `/api/admin/*`
 
-**大模型与向量（二选一）：**
+**大模型与向量（仅 OpenRouter）：**
 
-- **OpenRouter**（推荐）：`OPENROUTER_API_KEY`、`OPENROUTER_CHAT_MODEL`、`OPENROUTER_EMBEDDING_MODEL`；可选 `OPENROUTER_EMBEDDING_DIMENSIONS`（如与库中向量维度一致时 `2048`）
-- **火山方舟**：`ARK_API_KEY`、`ARK_CHAT_MODEL`、`ARK_EMBEDDING_MODEL`（未配置 OpenRouter 时生效）
+- `OPENROUTER_API_KEY`（必填，否则 `/api/chat` 与向量相关任务不可用）
+- `OPENROUTER_BASE_URL`（默认 `https://openrouter.ai/api/v1`）
+- `OPENROUTER_CHAT_MODEL`、`OPENROUTER_EMBEDDING_MODEL`
+- `OPENROUTER_EMBEDDING_DIMENSIONS`（可选；与库中 `vector` 维度一致时填写，例如 `2048`）
+
+连通性自检：`python scripts/test_openrouter_api.py`（读取同上环境变量）。
 
 3. 数据库：若使用 Supabase，先在前端仓库执行 `supabase db push` / `supabase start` 应用迁移；若独立 Postgres，需自行启用 `vector` 并与 `app/models.py` / 迁移对齐。
 

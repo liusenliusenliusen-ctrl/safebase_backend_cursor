@@ -51,44 +51,16 @@ async def _get_embedding_openrouter(text: str) -> List[float]:
         raise
 
 
-async def _get_embedding_ark(text: str) -> List[float]:
-    url = f"{settings.ark_base_url}/embeddings/multimodal"
-    headers = {
-        "Authorization": f"Bearer {settings.ark_api_key}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": settings.ark_embedding_model,
-        "input": [{"type": "text", "text": text}],
-    }
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-            if resp.status_code == 401:
-                _raise_auth_error("火山方舟")
-            resp.raise_for_status()
-            data = resp.json()
-            emb = data.get("data", {}).get("embedding", [])
-            return emb
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 401:
-            _raise_auth_error("火山方舟")
-        raise
-
-
 async def get_embedding(text: str) -> List[float]:
-    # 向量：优先火山方舟（若配了 ARK_API_KEY），否则 OpenRouter
-    if settings.ark_api_key and settings.ark_api_key.strip():
-        logger.info("embedding: 火山方舟 model=%s", settings.ark_embedding_model)
-        return await _get_embedding_ark(text)
-    if settings.openrouter_api_key and settings.openrouter_api_key.strip():
-        logger.info("embedding: OpenRouter model=%s", settings.openrouter_embedding_model)
-        return await _get_embedding_openrouter(text)
-    from fastapi import HTTPException
-    raise HTTPException(
-        status_code=502,
-        detail="请配置 ARK_API_KEY 或 OPENROUTER_API_KEY 以使用向量接口。",
-    )
+    if not (settings.openrouter_api_key and settings.openrouter_api_key.strip()):
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=502,
+            detail="请配置 OPENROUTER_API_KEY 以使用向量接口。",
+        )
+    logger.info("embedding: OpenRouter model=%s", settings.openrouter_embedding_model)
+    return await _get_embedding_openrouter(text)
 
 
 # ---------- Chat ----------
@@ -157,49 +129,14 @@ async def _stream_chat_openrouter(prompt: str) -> AsyncGenerator[str, None]:
         raise
 
 
-async def _stream_chat_ark(prompt: str) -> AsyncGenerator[str, None]:
-    url = f"{settings.ark_base_url}/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {settings.ark_api_key}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": settings.ark_chat_model,
-        "messages": [{"role": "user", "content": prompt}],
-        "stream": False,
-    }
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-            if resp.status_code == 401:
-                _raise_auth_error("火山方舟")
-            resp.raise_for_status()
-            data = resp.json()
-            content = data["choices"][0]["message"]["content"]
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 401:
-            _raise_auth_error("火山方舟")
-        raise
-
-    chunk_size = 60
-    for i in range(0, len(content), chunk_size):
-        yield content[i : i + chunk_size]
-
-
 async def stream_chat_completion(prompt: str) -> AsyncGenerator[str, None]:
-    # 对话：优先 OpenRouter（若配了 OPENROUTER_API_KEY），否则火山方舟
-    if settings.openrouter_api_key and settings.openrouter_api_key.strip():
-        logger.info("chat: OpenRouter model=%s", settings.openrouter_chat_model)
-        async for chunk in _stream_chat_openrouter(prompt):
-            yield chunk
-        return
-    if settings.ark_api_key and settings.ark_api_key.strip():
-        logger.info("chat: 火山方舟 model=%s", settings.ark_chat_model)
-        async for chunk in _stream_chat_ark(prompt):
-            yield chunk
-        return
-    from fastapi import HTTPException
-    raise HTTPException(
-        status_code=502,
-        detail="请配置 OPENROUTER_API_KEY 或 ARK_API_KEY 以使用对话接口。",
-    )
+    if not (settings.openrouter_api_key and settings.openrouter_api_key.strip()):
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=502,
+            detail="请配置 OPENROUTER_API_KEY 以使用对话接口。",
+        )
+    logger.info("chat: OpenRouter model=%s", settings.openrouter_chat_model)
+    async for chunk in _stream_chat_openrouter(prompt):
+        yield chunk

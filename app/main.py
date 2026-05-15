@@ -51,19 +51,14 @@ app.add_middleware(
 async def on_startup() -> None:
     # 打印当前对话/向量使用的来源，便于确认 .env 是否生效
     has_openrouter = bool(settings.openrouter_api_key and settings.openrouter_api_key.strip())
-    has_ark = bool(settings.ark_api_key and settings.ark_api_key.strip())
     if has_openrouter:
-        logger.info("chat 使用: OpenRouter model=%s", settings.openrouter_chat_model)
-    elif has_ark:
-        logger.info("chat 使用: 火山方舟 model=%s", settings.ark_chat_model)
+        logger.info(
+            "LLM 使用 OpenRouter chat=%s embedding=%s",
+            settings.openrouter_chat_model,
+            settings.openrouter_embedding_model,
+        )
     else:
-        logger.warning("chat 未配置: 需设置 OPENROUTER_API_KEY 或 ARK_API_KEY")
-    if has_ark:
-        logger.info("embedding 使用: 火山方舟 model=%s", settings.ark_embedding_model)
-    elif has_openrouter:
-        logger.info("embedding 使用: OpenRouter model=%s", settings.openrouter_embedding_model)
-    else:
-        logger.warning("embedding 未配置: 需设置 ARK_API_KEY 或 OPENROUTER_API_KEY")
+        logger.warning("未配置 OPENROUTER_API_KEY：对话与向量相关接口将不可用。")
 
     # 简单自动建表，生产可改为 Alembic 迁移
     async with engine.begin() as conn:

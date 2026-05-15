@@ -28,18 +28,12 @@ class Settings(BaseSettings):
     # 管理后台：请求头 X-Admin-Key 需与此一致才可访问 /api/admin/*
     admin_secret: Optional[str] = None
 
-    # OpenRouter（优先）：统一接口切换模型，见 https://openrouter.ai/docs
+    # OpenRouter：对话与向量均走该网关，见 https://openrouter.ai/docs
     openrouter_api_key: Optional[str] = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_chat_model: str = "deepseek/deepseek-chat"
     openrouter_embedding_model: str = "openai/text-embedding-3-small"
     openrouter_embedding_dimensions: Optional[int] = 2048  # 与 DB vector(2048) 一致，部分模型支持
-
-    # 火山方舟 / 豆包（可单独用于 embedding，与 OpenRouter 混用：对话 OpenRouter + 向量火山）
-    ark_api_key: Optional[str] = None
-    ark_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
-    ark_chat_model: str = "ep-XXXXXXXX"
-    ark_embedding_model: str = "text-embedding-v2"
 
     # Prompt 模板（仅影响“prompt 文本”，不影响向量/模型选择）
     # - 可选：指定目录后，若存在同名文件（例如 chat.txt），将优先从文件加载覆盖默认模板
@@ -50,10 +44,6 @@ class Settings(BaseSettings):
     class Config:
         env_file = str(_ENV_FILE)
         env_file_encoding = "utf-8"
-
-    @property
-    def use_openrouter(self) -> bool:
-        return bool(self.openrouter_api_key and self.openrouter_api_key.strip())
 
 
 @lru_cache

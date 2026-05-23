@@ -1,12 +1,12 @@
-"""管理后台：需在请求头携带 X-Admin-Key 且与配置的 admin_secret 一致。"""
+"""管理后台：需在请求头携带 X-Admin-Key；用户列表来自 auth.users（Supabase Auth）。"""
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import APIKeyHeader
-from sqlalchemy import select, func
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import get_settings
 from .database import get_db
-from .models import User, Profile, Message, Summary, Anchor
+from .models import Message, Profile, Summary, Anchor
 from .schemas import (
     AdminUserDetail,
     AdminUserListItem,
@@ -28,44 +28,38 @@ async def require_admin(key: str | None = Depends(admin_key_header)) -> None:
         )
 
 
-def _msg_count_subq():
-    return select(func.count(Message.id)).where(Message.user_id == User.id).scalar_subquery()
-
-
-def _summary_count_subq():
-    return select(func.count(Summary.id)).where(Summary.user_id == User.id).scalar_subquery()
-
-
-def _anchor_count_subq():
-    return select(func.count(Anchor.id)).where(Anchor.user_id == User.id).scalar_subquery()
-
-
 @router.get("/users", response_model=list[AdminUserListItem])
 async def list_users(
     _: None = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> list[AdminUserListItem]:
-    stmt = (
-        select(
-            User.id,
-            User.username,
-            User.created_at,
-            _msg_count_subq().label("message_count"),
-            _summary_count_subq().label("summary_count"),
-            _anchor_count_subq().label("anchor_count"),
-        )
-        .order_by(User.created_at.desc())
+    stmt = text(
+        """
+        SELECT
+          u.id::text AS id,
+          COALESCE(
+            u.raw_user_meta_data->>'username',
+            split_part(u.email, '@', 1),
+            '用户'
+          ) AS username,
+          u.created_at AS created_at,
+          (SELECT count(*) FROM public.messages m WHERE m.user_id = u.id) AS message_count,
+          (SELECT count(*) FROM public.summaries s WHERE s.user_id = u.id) AS summary_count,
+          (SELECT count(*) FROM public.anchors a WHERE a.user_id = u.id) AS anchor_count
+        FROM auth.users u
+        ORDER BY u.created_at DESC
+        """
     )
     res = await db.execute(stmt)
-    rows = res.all()
+    rows = res.fetchall()
     return [
         AdminUserListItem(
-            id=str(r.id),
+            id=r.id,
             username=r.username,
             created_at=r.created_at,
-            message_count=r.message_count or 0,
-            summary_count=r.summary_count or 0,
-            anchor_count=r.anchor_count or 0,
+            message_count=int(r.message_count or 0),
+            summary_count=int(r.summary_count or 0),
+            anchor_count=int(r.anchor_count or 0),
         )
         for r in rows
     ]
@@ -78,10 +72,23 @@ async def get_user_detail(
     _: None = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> AdminUserDetail:
-    stmt_user = select(User).where(User.id == user_id)
-    res_user = await db.execute(stmt_user)
-    user = res_user.scalar_one_or_none()
-    if user is None:
+    stmt_user = text(
+        """
+        SELECT
+          u.id::text AS id,
+          COALESCE(
+            u.raw_user_meta_data->>'username',
+            split_part(u.email, '@', 1),
+            '用户'
+          ) AS username,
+          u.created_at AS created_at
+        FROM auth.users u
+        WHERE u.id = :uid
+        """
+    )
+    res_user = await db.execute(stmt_user, {"uid": user_id})
+    user_row = res_user.fetchone()
+    if user_row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     stmt_profile = select(Profile).where(Profile.user_id == user_id)
@@ -112,7 +119,11 @@ async def get_user_detail(
     ]
 
     return AdminUserDetail(
-        user=UserOut(id=str(user.id), username=user.username, created_at=user.created_at),
+        user=UserOut(
+            id=user_row.id,
+            username=user_row.username,
+            created_at=user_row.created_at,
+        ),
         profile_content=profile.content if profile else None,
         profile_updated_at=profile.updated_at if profile else None,
         message_count=msg_count or 0,

@@ -10,25 +10,6 @@ settings = get_settings()
 
 
 DEFAULT_PROMPT_TEMPLATES: dict[str, str] = {
-    # Chat: /api/chat
-    "chat": """你是一位温柔、稳定、具备 CPTSD 专业知识的长期疗愈伴侣。
-请使用下列信息来理解用户，并进行有共情的回复。避免生硬的心理学术语，多用具象、轻柔的表达。
-
-## 用户静态画像
-$profile_text
-
-## 近期对话片段
-$short_ctx
-
-## 相关历史摘要（部分）
-$summaries_text
-
-## 重要事件锚点（部分）
-$anchors_text
-
-## 本次用户输入
-$user_message
-""",
     # Tasks: generate_daily_summaries
     "daily_summary": """请为下面这一天的对话写一个温柔、简要的情绪与主题摘要：
 $convo_text""",

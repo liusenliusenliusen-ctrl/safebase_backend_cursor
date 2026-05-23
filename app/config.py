@@ -20,11 +20,6 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://cptsd_user:123456@localhost:5432/cptsd_db"
     )
 
-    # JWT 相关
-    jwt_secret_key: str
-    jwt_algorithm: str = "HS256"
-    access_token_expires_minutes: int = 60 * 24 * 7  # 7 天
-
     # 管理后台：请求头 X-Admin-Key 需与此一致才可访问 /api/admin/*
     admin_secret: Optional[str] = None
 
@@ -36,7 +31,7 @@ class Settings(BaseSettings):
     openrouter_embedding_dimensions: Optional[int] = 2048  # 与 DB vector(2048) 一致，部分模型支持
 
     # Prompt 模板（仅影响“prompt 文本”，不影响向量/模型选择）
-    # - 可选：指定目录后，若存在同名文件（例如 chat.txt），将优先从文件加载覆盖默认模板
+    # - 可选：指定目录后，若存在同名 .txt，将优先从文件加载覆盖默认模板
     prompt_template_dir: Optional[str] = None
     # - 是否开启热加载（默认关闭；通常需要重启服务，或使用 prompt-debug 接口的 reload 参数）
     prompt_hot_reload: bool = False

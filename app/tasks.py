@@ -1,17 +1,91 @@
 from datetime import date, datetime, timedelta
 
 from celery import Celery
-from sqlalchemy import select
+from sqlalchemy import select, text, union
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import get_settings
 from .database import AsyncSessionLocal
 from .llm import get_embedding, stream_chat_completion
-from .models import Anchor, Message, Profile, Summary, User
+from .models import Anchor, Message, Profile, Summary
 from .prompting import render_prompt
 
 
 settings = get_settings()
+
+DEFAULT_PROFILE_CONTENT = """# 核心画像
+尚未生成
+
+## 触发清单
+尚未记录
+
+## 资源库
+尚未记录"""
+
+
+async def _active_user_ids(db: AsyncSession) -> list[str]:
+    """Supabase 主站用户：profiles + 有 messages 的 auth.users，不再依赖 public.users。"""
+    stmt = union(
+        select(Profile.user_id),
+        select(Message.user_id).distinct(),
+    )
+    res = await db.execute(stmt)
+    return [str(row[0]) for row in res.fetchall()]
+
+
+async def _fetch_recent_diaries_text(
+    db: AsyncSession,
+    uid: str,
+    limit: int = 5,
+    updated_since: datetime | None = None,
+    max_chars_per: int = 600,
+) -> str:
+    """主站 diaries 表（非 diary_entries）。"""
+    if updated_since is not None:
+        stmt = text(
+            """
+            SELECT title, content
+            FROM diaries
+            WHERE user_id = :uid AND updated_at >= :since
+            ORDER BY updated_at DESC
+            LIMIT :lim
+            """
+        )
+        res = await db.execute(
+            stmt,
+            {"uid": uid, "since": updated_since, "lim": limit},
+        )
+    else:
+        stmt = text(
+            """
+            SELECT title, content
+            FROM diaries
+            WHERE user_id = :uid
+            ORDER BY updated_at DESC
+            LIMIT :lim
+            """
+        )
+        res = await db.execute(stmt, {"uid": uid, "lim": limit})
+    rows = res.fetchall()
+    if not rows:
+        return ""
+    lines: list[str] = []
+    for title, content in rows:
+        t = (title or "无标题").strip()
+        c = (content or "")[:max_chars_per]
+        lines.append(f"- {t}: {c}")
+    return "\n".join(lines)
+
+
+async def _ensure_profile(db: AsyncSession, uid: str) -> Profile:
+    stmt_profile = select(Profile).where(Profile.user_id == uid)
+    res_profile = await db.execute(stmt_profile)
+    profile = res_profile.scalar_one_or_none()
+    if not profile:
+        profile = Profile(user_id=uid, content=DEFAULT_PROFILE_CONTENT)
+        db.add(profile)
+        await db.flush()
+    return profile
 
 app = Celery(
     "cptsd_tasks",
@@ -37,9 +111,7 @@ def generate_daily_summaries():
             today = date.today()
             yesterday = today - timedelta(days=1)
             # 对每个用户生成昨天的日摘要（若不存在）
-            stmt_users = select(User.id)
-            res_users = await db.execute(stmt_users)
-            user_ids = [row[0] for row in res_users.fetchall()]
+            user_ids = await _active_user_ids(db)
             for uid in user_ids:
                 stmt_exist = select(Summary).where(
                     Summary.user_id == uid,
@@ -60,8 +132,19 @@ def generate_daily_summaries():
                 if not msgs:
                     continue
                 convo_text = "\n".join(f"{m.role}: {m.content}" for m in msgs)
-                # 使用对话模型生成摘要
-                prompt = render_prompt("daily_summary", {"convo_text": convo_text})
+                diaries_text = await _fetch_recent_diaries_text(
+                    db,
+                    uid,
+                    limit=3,
+                    updated_since=datetime.combine(yesterday, datetime.min.time()),
+                )
+                prompt = render_prompt(
+                    "daily_summary",
+                    {
+                        "convo_text": convo_text,
+                        "diaries_text": diaries_text or "（无）",
+                    },
+                )
                 full = ""
                 async for part in stream_chat_completion(prompt):
                     full += part
@@ -106,17 +189,10 @@ def update_profiles():
 
     async def _run():
         async with AsyncSessionLocal() as db:
-            stmt_users = select(User.id)
-            res_users = await db.execute(stmt_users)
-            user_ids = [row[0] for row in res_users.fetchall()]
+            user_ids = await _active_user_ids(db)
 
             for uid in user_ids:
-                # 当前画像
-                stmt_profile = select(Profile).where(Profile.user_id == uid)
-                res_profile = await db.execute(stmt_profile)
-                profile = res_profile.scalar_one_or_none()
-                if not profile:
-                    continue
+                profile = await _ensure_profile(db, uid)
                 current_content = profile.content or ""
 
                 # 近期日摘要（最近 7 条）
@@ -145,7 +221,9 @@ def update_profiles():
                     f"{m.role}: {m.content}" for m in msgs
                 ) if msgs else "（暂无对话）"
 
-                if not summaries_text and not msgs:
+                diaries_text = await _fetch_recent_diaries_text(db, uid, limit=5)
+
+                if not summaries_text and not msgs and not diaries_text:
                     continue
 
                 prompt = render_prompt(
@@ -154,6 +232,7 @@ def update_profiles():
                         "current_content": current_content,
                         "summaries_text": summaries_text or "（暂无）",
                         "convo_text": convo_text[:8000],
+                        "diaries_text": diaries_text or "（暂无）",
                     },
                 )
 
@@ -182,9 +261,7 @@ def maintain_anchors():
 
     async def _run():
         async with AsyncSessionLocal() as db:
-            stmt_users = select(User.id)
-            res_users = await db.execute(stmt_users)
-            user_ids = [row[0] for row in res_users.fetchall()]
+            user_ids = await _active_user_ids(db)
 
             for uid in user_ids:
                 # ---------- 1. 刷新已有锚点的 current_thought 与 embedding ----------
@@ -209,6 +286,12 @@ def maintain_anchors():
                     convo_since = "\n".join(
                         f"{m.role}: {m.content}" for m in new_msgs
                     )[:6000]
+                    diaries_since = await _fetch_recent_diaries_text(
+                        db,
+                        uid,
+                        limit=3,
+                        updated_since=anchor.updated_at,
+                    )
 
                     prompt = render_prompt(
                         "anchor_update_current_thought",
@@ -217,6 +300,7 @@ def maintain_anchors():
                             "initial_thought": anchor.initial_thought or "（无）",
                             "current_thought": anchor.current_thought or "（无）",
                             "convo_since": convo_since,
+                            "diaries_text": diaries_since or "（无）",
                         },
                     )
 
@@ -256,15 +340,20 @@ def maintain_anchors():
                     f"{m.role}: {m.content}" for m in msgs
                 )[:10000] if msgs else ""
 
-                if not summaries_text and not convo_text:
+                diaries_text = await _fetch_recent_diaries_text(db, uid, limit=5)
+
+                if not summaries_text and not convo_text and not diaries_text:
                     continue
 
-                # 已有锚点的事件名，避免重复
                 existing_names = {a.event_name.strip().lower() for a in anchors}
 
                 prompt2 = render_prompt(
                     "anchor_extract",
-                    {"summaries_text": summaries_text or "（无）", "convo_text": convo_text},
+                    {
+                        "summaries_text": summaries_text or "（无）",
+                        "convo_text": convo_text,
+                        "diaries_text": diaries_text or "（无）",
+                    },
                 )
 
                 full2 = ""
@@ -289,6 +378,7 @@ def maintain_anchors():
                             "initial_thought": "（无）",
                             "current_thought": "（无）",
                             "convo_since": convo_for_new,
+                            "diaries_text": diaries_text or "（无）",
                         },
                     )
                     first_view = ""

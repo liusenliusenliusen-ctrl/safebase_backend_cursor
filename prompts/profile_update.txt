@@ -35,6 +35,10 @@ $summaries_text
 ---
 $convo_text
 ---
+近期日记：
+---
+$diaries_text
+---
 请直接输出更新后的完整 Markdown，不要其他解释。
 
 Constraints:

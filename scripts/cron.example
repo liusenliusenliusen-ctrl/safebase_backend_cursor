@@ -1,0 +1,9 @@
+# SafeBase 夜间批处理 — cron 示例
+# npm run tasks -- daily | profiles | anchors
+
+30 23 * * * cd /path/to/safebase_backend_cursor && /usr/bin/npm run tasks -- daily >> /var/log/safebase-daily.log 2>&1
+10  0 * * * cd /path/to/safebase_backend_cursor && /usr/bin/npm run tasks -- profiles >> /var/log/safebase-profiles.log 2>&1
+30  0 * * * cd /path/to/safebase_backend_cursor && /usr/bin/npm run tasks -- anchors >> /var/log/safebase-anchors.log 2>&1
+
+# 或使用编译产物：
+# 30 23 * * * cd /path/to/safebase_backend_cursor && node dist/scripts/run-tasks.js daily

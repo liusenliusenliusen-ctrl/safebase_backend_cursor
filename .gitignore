@@ -1,31 +1,14 @@
 # 环境与密钥
 .env
-.venv
-venv
-env/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-*.egg-info/
-.eggs/
+node_modules/
 dist/
-build/
+__pycache__/
+*.pyc
 
 # IDE
 .idea/
 .vscode/
 *.swp
-*.swo
-
-# 测试与覆盖
-.pytest_cache/
-.coverage
-htmlcov/
-
-# 其他
-*.log
 .DS_Store
+
+*.log

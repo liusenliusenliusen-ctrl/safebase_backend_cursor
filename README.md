@@ -66,4 +66,4 @@ prompts/            可覆盖的内嵌模板
 npm run clear-data   # 清空业务表（不删 auth.users）
 ```
 
-主站 Schema 由 `safebase_front_cursor/supabase/migrations/` 维护；部署前在 Supabase 执行迁移。
+主站 Schema 由 `safebase_front_cursor/supabase/migrations/` 维护。生产部署见 [safebase_front_cursor/docs/DEPLOYMENT.md](../safebase_front_cursor/docs/DEPLOYMENT.md)。

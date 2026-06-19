@@ -3,18 +3,7 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** 含 package.json 的目录（dev: 仓库根；prod: dist/src → 上两级） */
-function findProjectRoot(start: string): string {
-  let dir = resolve(start);
-  for (;;) {
-    if (existsSync(join(dir, "package.json"))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) return resolve(start);
-    dir = parent;
-  }
-}
-
-const root = findProjectRoot(dirname(fileURLToPath(import.meta.url)));
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const envPath = join(root, ".env");
 if (existsSync(envPath)) {
   loadEnv({ path: envPath });

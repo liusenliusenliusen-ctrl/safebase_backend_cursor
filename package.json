@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/src/index.js",
+    "start": "node dist/index.js",
     "tasks": "tsx scripts/run-tasks.ts",
     "clear-data": "tsx scripts/clear-user-data.ts"
   },

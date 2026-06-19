@@ -19,7 +19,7 @@ async function main(): Promise<void> {
     DEFAULT_PROFILE,
   ]);
   console.log(
-    "已清空：anchors, summaries, messages, diaries；已重置所有 profile。auth.users 未删除。"
+    "已清空：anchors, summaries, messages, diaries；已重置所有 profile。public.users 未删除。"
   );
 }
 

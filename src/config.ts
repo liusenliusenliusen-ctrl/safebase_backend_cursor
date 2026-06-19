@@ -25,8 +25,9 @@ export const config = {
   host: process.env.HOST ?? "0.0.0.0",
   databaseUrl: normalizeDatabaseUrl(
     process.env.DATABASE_URL ??
-      "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+      "postgresql://postgres:postgres@127.0.0.1:5432/safebase"
   ),
+  jwtSecret: process.env.JWT_SECRET ?? "",
   adminSecret: process.env.ADMIN_SECRET ?? "",
   openrouterApiKey: process.env.OPENROUTER_API_KEY ?? "",
   openrouterBaseUrl: (

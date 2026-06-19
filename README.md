@@ -1,22 +1,31 @@
-# CPTSD 疗愈伴侣 · 配套服务（Node.js cron 批处理 + 管理 API）
+# CPTSD 疗愈伴侣 · 后端（Node.js + Postgres）
 
-本仓库**不是**主站对话 API。主站用户认证、聊天、日记 CRUD 均在 [safebase_front_cursor](../safebase_front_cursor)（Supabase Auth + Edge `stream-chat` + PostgREST）。
+主站 API、对话 RAG、数据库 Schema、夜间记忆批处理、管理接口。与 [safebase_front_cursor](../safebase_front_cursor)、[safebase_admin_cursor](../safebase_admin_cursor) 共用同一 Postgres。
 
-本服务连接**同一套 Supabase Postgres**（`DATABASE_URL` 直连），提供：
-
-1. **夜间记忆批处理** — 日摘要、画像更新、锚点维护（**cron + `npm run tasks`**，无需 Redis）
-2. **HTTP 管理接口** — `/api/admin/*`，供 [safebase_admin_cursor](../safebase_admin_cursor) 使用
-
-技术栈：**Node.js 18+ · TypeScript · Fastify · pg**
+技术栈：**Node.js 18+ · TypeScript · Fastify · pg · jose · bcryptjs**
 
 ## 快速开始
 
 ```bash
-cp .env.example .env   # 填写 DATABASE_URL、OPENROUTER_API_KEY、ADMIN_SECRET
+docker compose up -d
+cp .env.example .env   # DATABASE_URL、JWT_SECRET、OPENROUTER_API_KEY、ADMIN_SECRET
 npm install
-npm run dev            # 开发：http://0.0.0.0:8000
-npm run build && npm start   # 生产
+npm run dev            # http://0.0.0.0:8000
 ```
+
+## HTTP API
+
+| 前缀 | 说明 |
+|------|------|
+| `/api/health` | 健康检查 |
+| `/api/auth/*` | 注册、登录（JWT） |
+| `/api/messages` | 对话消息 |
+| `/api/chat/stream` | RAG + OpenRouter SSE |
+| `/api/diaries` | 日记 CRUD + embedding |
+| `/api/account` | 注销账号 |
+| `/api/admin/*` | 管理端（`X-Admin-Key`） |
+
+用户数据在 **`public.users`**；Schema 见 `sql/migrations/`。
 
 ## 批处理（cron）
 
@@ -27,43 +36,34 @@ npm run tasks -- profiles anchors
 
 见 `scripts/cron.example`。
 
-## 管理 API
-
-- 鉴权：`X-Admin-Key` = `.env` 的 `ADMIN_SECRET`
-- `GET /api/admin/users`
-- `GET /api/admin/users/:id?messages_limit=50`
-
-用户列表来自 **`auth.users`**（Supabase Auth）。
-
 ## 环境变量
 
 | 变量 | 说明 |
 |------|------|
-| `DATABASE_URL` | Postgres 连接串（`postgresql://` 或 `postgresql+asyncpg://`） |
-| `OPENROUTER_API_KEY` | 跑批处理时必填 |
-| `OPENROUTER_EMBEDDING_MODEL` | 建议 `openai/text-embedding-3-large`（2048 维） |
-| `ADMIN_SECRET` | 管理端密钥 |
-| `PORT` | 默认 `8000` |
+| `DATABASE_URL` | `postgresql://postgres:postgres@127.0.0.1:5432/safebase` |
+| `JWT_SECRET` | JWT 签名（生产用随机长串） |
+| `OPENROUTER_API_KEY` | 对话与 embedding |
+| `OPENROUTER_EMBEDDING_MODEL` | 建议 `openai/text-embedding-3-large` |
+| `ADMIN_SECRET` | 管理后台密钥 |
 
 ## 目录
 
 ```text
-src/
-  index.ts          Fastify 入口
-  admin/routes.ts   管理 API
-  tasks/index.ts    夜间批处理
-  llm/openrouter.ts OpenRouter 封装
-  prompts/index.ts  Prompt 模板（默认读 prompts/*.txt）
-scripts/
-  run-tasks.ts      cron 入口
-  clear-user-data.ts
-prompts/            可覆盖的内嵌模板
+sql/migrations/     数据库 Schema（唯一来源）
+src/auth/           JWT、注册登录
+src/chat/           RAG、流式对话
+src/messages/       消息 API
+src/diaries/        日记 API
+src/admin/          管理 API
+src/tasks/          夜间批处理
+prompts/            LLM 模板
+docker-compose.yml  Postgres + pgvector
 ```
 
 ## 工具
 
 ```bash
-npm run clear-data   # 清空业务表（不删 auth.users）
+npm run clear-data   # 清空业务数据（保留 public.users）
 ```
 
-主站 Schema 由 `safebase_front_cursor/supabase/migrations/` 维护；部署前在 Supabase 执行迁移。
+详细联调与部署见主站 [docs/DEVELOPMENT.md](../safebase_front_cursor/docs/DEVELOPMENT.md)、[docs/DEPLOYMENT.md](../safebase_front_cursor/docs/DEPLOYMENT.md)。

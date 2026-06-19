@@ -2,6 +2,11 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { config } from "./config.js";
 import { registerAdminRoutes } from "./admin/routes.js";
+import { registerAuthRoutes } from "./auth/routes.js";
+import { registerChatRoutes } from "./chat/routes.js";
+import { registerDiaryRoutes } from "./diaries/routes.js";
+import { registerMessageRoutes } from "./messages/routes.js";
+import { registerAccountRoutes } from "./account/routes.js";
 import { pool } from "./db.js";
 
 const app = Fastify({ logger: true });
@@ -13,6 +18,13 @@ app.setErrorHandler((error, _request, reply) => {
   reply.code(500).send({ detail: "Internal Server Error" });
 });
 
+app.get("/api/health", async () => ({ ok: true }));
+
+await registerAuthRoutes(app);
+await registerMessageRoutes(app);
+await registerChatRoutes(app);
+await registerDiaryRoutes(app);
+await registerAccountRoutes(app);
 await registerAdminRoutes(app);
 
 app.addHook("onReady", async () => {
@@ -23,11 +35,9 @@ app.addHook("onReady", async () => {
       config.openrouterEmbeddingModel
     );
   } else {
-    app.log.warn("未配置 OPENROUTER_API_KEY：夜间批处理（npm run tasks）将不可用。");
+    app.log.warn("未配置 OPENROUTER_API_KEY：对话与夜间批处理将不可用。");
   }
-  app.log.info(
-    "HTTP 仅暴露 /api/admin/*；主站对话与认证在 Supabase Edge + Auth。"
-  );
+  app.log.info("API: /api/auth, /api/messages, /api/chat/stream, /api/diaries, /api/account, /api/admin");
 });
 
 try {

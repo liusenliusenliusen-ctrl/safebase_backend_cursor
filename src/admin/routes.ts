@@ -54,16 +54,12 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       }>(`
         SELECT
           u.id::text AS id,
-          COALESCE(
-            u.raw_user_meta_data->>'username',
-            split_part(u.email, '@', 1),
-            '用户'
-          ) AS username,
+          u.username AS username,
           u.created_at AS created_at,
           (SELECT count(*) FROM public.messages m WHERE m.user_id = u.id) AS message_count,
           (SELECT count(*) FROM public.summaries s WHERE s.user_id = u.id) AS summary_count,
           (SELECT count(*) FROM public.anchors a WHERE a.user_id = u.id) AS anchor_count
-        FROM auth.users u
+        FROM public.users u
         ORDER BY u.created_at DESC
       `);
       const body: AdminUserListItem[] = rows.map((r) => ({
@@ -96,13 +92,9 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
         `
         SELECT
           u.id::text AS id,
-          COALESCE(
-            u.raw_user_meta_data->>'username',
-            split_part(u.email, '@', 1),
-            '用户'
-          ) AS username,
+          u.username AS username,
           u.created_at AS created_at
-        FROM auth.users u
+        FROM public.users u
         WHERE u.id = $1::uuid
         `,
         [userId]

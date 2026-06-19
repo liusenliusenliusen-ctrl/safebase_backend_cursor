@@ -3,6 +3,11 @@
 node_modules/
 dist/
 
+# Python 残留（已弃用）
+app/
+__pycache__/
+*.pyc
+
 # IDE
 .idea/
 .vscode/

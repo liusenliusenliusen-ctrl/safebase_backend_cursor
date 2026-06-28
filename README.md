@@ -11,6 +11,14 @@ docker compose up -d
 cp .env.example .env   # DATABASE_URL、JWT_SECRET、OPENROUTER_API_KEY、ADMIN_SECRET
 npm install
 npm run dev            # http://0.0.0.0:8000
+npm run build && npm start   # 生产：node dist/src/index.js
+```
+
+连接数据库：
+
+```bash
+psql "postgresql://postgres:postgres@127.0.0.1:5433/safebase"
+# 或 docker exec -it safebase-postgres psql -U postgres -d safebase
 ```
 
 ## HTTP API
@@ -40,8 +48,8 @@ npm run tasks -- profiles anchors
 
 | 变量 | 说明 |
 |------|------|
-| `DATABASE_URL` | `postgresql://postgres:postgres@127.0.0.1:5432/safebase` |
-| `JWT_SECRET` | JWT 签名（生产用随机长串） |
+| `DATABASE_URL` | `postgresql://postgres:postgres@127.0.0.1:5433/safebase`（Docker 宿主机端口 5433） |
+| `JWT_SECRET` | JWT 签名（**必填**，否则注册/登录 500） |
 | `OPENROUTER_API_KEY` | 对话与 embedding |
 | `OPENROUTER_EMBEDDING_MODEL` | 建议 `openai/text-embedding-3-large` |
 | `ADMIN_SECRET` | 管理后台密钥 |

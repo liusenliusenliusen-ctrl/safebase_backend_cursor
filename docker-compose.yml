@@ -8,8 +8,9 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: safebase
+    # 宿主机 5433，避免 Mac 本机 Postgres 占用 5432；生产无冲突时可改为 "5432:5432"
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./sql/migrations:/docker-entrypoint-initdb.d:ro

@@ -1,9 +1,18 @@
 import { config as loadEnv } from "dotenv";
 import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+/** Project root: src/ in dev, dist/../ in production (dist/src/config.js). */
+function resolveProjectRoot(): string {
+  let root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  if (basename(root) === "dist") {
+    root = resolve(root, "..");
+  }
+  return root;
+}
+
+const root = resolveProjectRoot();
 const envPath = join(root, ".env");
 if (existsSync(envPath)) {
   loadEnv({ path: envPath });

@@ -46,13 +46,15 @@ npm run tasks -- profiles anchors
 
 ## 环境变量
 
+`.env` 放在仓库根目录（与 `package.json` 同级）。`npm run dev` 与 PM2 运行 `dist/src/index.js` 均从此处加载。
+
 | 变量 | 说明 |
 |------|------|
 | `DATABASE_URL` | `postgresql://postgres:postgres@127.0.0.1:5433/safebase`（Docker 宿主机端口 5433） |
 | `JWT_SECRET` | JWT 签名（**必填**，否则注册/登录 500） |
 | `OPENROUTER_API_KEY` | 对话与 embedding |
 | `OPENROUTER_EMBEDDING_MODEL` | 建议 `openai/text-embedding-3-large` |
-| `ADMIN_SECRET` | 管理后台密钥 |
+| `ADMIN_SECRET` | 管理后台密钥（请求头 `X-Admin-Key`） |
 
 ## 目录
 

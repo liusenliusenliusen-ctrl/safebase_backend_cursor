@@ -76,4 +76,5 @@ docker-compose.yml  Postgres + pgvector
 npm run clear-data   # 清空业务数据（保留 public.users）
 ```
 
-详细联调与部署见主站 [docs/DEVELOPMENT.md](../safebase_front_cursor/docs/DEVELOPMENT.md)、[docs/DEPLOYMENT.md](../safebase_front_cursor/docs/DEPLOYMENT.md)。
+详细联调与部署见主站 [docs/DEVELOPMENT.md](../safebase_front_cursor/docs/DEVELOPMENT.md)、[docs/DEPLOYMENT.md](../safebase_front_cursor/docs/DEPLOYMENT.md)。  
+数据访问与隐私演进路线见 [docs/SECURITY_EVOLUTION.md](../safebase_front_cursor/docs/SECURITY_EVOLUTION.md)。

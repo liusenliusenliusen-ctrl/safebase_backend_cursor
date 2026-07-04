@@ -58,7 +58,14 @@ export async function registerChatRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       await ensureDefaultProfile(userId);
-      await updateUserMessageEmbedding(userId, userMessageId, userMessage);
+      const embeddingOk = await updateUserMessageEmbedding(
+        userId,
+        userMessageId,
+        userMessage
+      );
+      if (!embeddingOk) {
+        return reply.code(499).send({ detail: "cancelled" });
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       return reply.code(502).send({ detail: `Prepare user message failed: ${msg}` });

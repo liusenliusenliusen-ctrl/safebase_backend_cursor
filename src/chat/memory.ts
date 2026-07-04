@@ -117,16 +117,14 @@ export async function updateUserMessageEmbedding(
   userId: string,
   messageId: number,
   content: string
-): Promise<void> {
+): Promise<boolean> {
   const embedding = await getEmbedding(content);
   const res = await query(
     `UPDATE public.messages SET embedding = $1::vector
      WHERE id = $2 AND user_id = $3::uuid AND role = 'user'`,
     [toVectorLiteral(embedding), messageId, userId]
   );
-  if (res.rowCount === 0) {
-    throw new Error("update user message embedding failed: not found");
-  }
+  return (res.rowCount ?? 0) > 0;
 }
 
 export async function insertAssistantMessage(

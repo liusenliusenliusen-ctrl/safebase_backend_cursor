@@ -1,0 +1,6 @@
+-- 从旧库名 safebase 升级到 trauma_heal（仅已有数据、保留 volume 时手动执行一次）
+-- 新环境由 docker-compose POSTGRES_DB=trauma_heal 自动创建，无需本文件。
+--
+-- docker exec -it trauma-heal-postgres psql -U postgres -c "ALTER DATABASE safebase RENAME TO trauma_heal;"
+--
+-- 执行后请同步 backend .env 中 DATABASE_URL 的数据库名为 trauma_heal。

@@ -1,6 +1,6 @@
 import { getEmbedding } from "../llm/openrouter.js";
 import { query, toVectorLiteral } from "../db.js";
-import { renderChatPrompt } from "./prompt.js";
+import { renderChatMessages } from "./prompt.js";
 import { DEFAULT_PROFILE_CONTENT } from "../auth/users.js";
 
 export function extractLastUserMessage(
@@ -20,27 +20,10 @@ function formatShortCtx(rows: { role: string; content: string }[]): string {
     .join("\n");
 }
 
-async function fetchRecentDiariesFallback(
-  userId: string,
-  limit: number
-): Promise<string> {
-  const { rows } = await query<{ title: string; content: string }>(
-    `SELECT title, content FROM public.diaries
-     WHERE user_id = $1::uuid
-     ORDER BY updated_at DESC
-     LIMIT $2`,
-    [userId, limit]
-  );
-  if (!rows.length) return "";
-  return rows
-    .map((d) => `- ${d.title || "无标题"}: ${(d.content || "").slice(0, 500)}`)
-    .join("\n");
-}
-
-export async function buildMemoryPrompt(
+export async function buildChatMessages(
   userId: string,
   userMessage: string
-): Promise<string> {
+): Promise<{ system: string; user: string }> {
   const profileRes = await query<{ content: string }>(
     `SELECT content FROM public.profiles WHERE user_id = $1::uuid`,
     [userId]
@@ -58,19 +41,12 @@ export async function buildMemoryPrompt(
 
   let summaries_text = "";
   let anchors_text = "";
-  let diaries_text = "";
 
   const sums = await query<{ summary_date: Date; content: string }>(
     `SELECT summary_date, content FROM public.match_summaries_daily($1::uuid, $2::vector, $3)`,
     [userId, embLit, 2]
   );
-  if (sums.rows.length) {
-    summaries_text = sums.rows
-      .map((r) => `- ${r.summary_date.toISOString().slice(0, 10)}: ${r.content}`)
-      .join("\n");
-  }
-
-  const anchors = await query<{
+  const anchorsPromise = query<{
     event_name: string;
     initial_thought: string | null;
     current_thought: string | null;
@@ -79,6 +55,14 @@ export async function buildMemoryPrompt(
      FROM public.match_anchors($1::uuid, $2::vector, $3)`,
     [userId, embLit, 1]
   );
+
+  if (sums.rows.length) {
+    summaries_text = sums.rows
+      .map((r) => `- ${r.summary_date.toISOString().slice(0, 10)}: ${r.content}`)
+      .join("\n");
+  }
+
+  const anchors = await anchorsPromise;
   if (anchors.rows[0]) {
     const a = anchors.rows[0];
     anchors_text =
@@ -87,30 +71,22 @@ export async function buildMemoryPrompt(
       `当前看法：${a.current_thought ?? ""}\n`;
   }
 
-  try {
-    const diaries = await query<{ title: string; content: string }>(
-      `SELECT title, content FROM public.match_diaries($1::uuid, $2::vector, $3)`,
-      [userId, embLit, 2]
-    );
-    if (diaries.rows.length) {
-      diaries_text = diaries.rows
-        .map((d) => `- ${d.title || "无标题"}: ${(d.content || "").slice(0, 500)}`)
-        .join("\n");
-    } else {
-      diaries_text = await fetchRecentDiariesFallback(userId, 2);
-    }
-  } catch {
-    diaries_text = await fetchRecentDiariesFallback(userId, 2);
-  }
-
-  return renderChatPrompt({
+  return renderChatMessages({
     profile_text,
     short_ctx,
     summaries_text,
     anchors_text,
-    diaries_text,
     user_message: userMessage,
   });
+}
+
+/** @deprecated 使用 buildChatMessages */
+export async function buildMemoryPrompt(
+  userId: string,
+  userMessage: string
+): Promise<string> {
+  const { system, user } = await buildChatMessages(userId, userMessage);
+  return `${system}\n\n${user}`;
 }
 
 export async function updateUserMessageEmbedding(

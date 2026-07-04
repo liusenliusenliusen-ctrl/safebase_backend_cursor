@@ -1,4 +1,4 @@
--- SafeBase schema (Postgres + pgvector, no Supabase Auth / RLS)
+-- Trauma Healing Companion schema (Postgres + pgvector, no Supabase Auth / RLS)
 
 create extension if not exists "pgcrypto";
 create extension if not exists vector;

@@ -14,5 +14,5 @@ export function usernameToEmail(username: string): string {
     .replace(/[^a-z0-9\u4e00-\u9fff]+/g, "-")
     .replace(/^-+|-+$/g, "");
   const safe = slug || "user";
-  return `${safe}@safebase.internal`;
+  return `${safe}@trauma-heal.internal`;
 }

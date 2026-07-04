@@ -1,29 +1,41 @@
-/** 与 prompts/chat.txt 一致；[相关日记] 为主站扩展 */
-export const CHAT_PROMPT_TEMPLATE = `## Role: 疗愈对话伙伴
-你是一个温暖、敏锐的对话伙伴，专门陪伴CPTSD幸存者进行深度交流。
+/** 创伤疗愈对话 system + user 模板 */
 
-你的回答**只能是纯粹的口语文字**。严禁使用任何括号、星号或引号来标注动作、语气或场景（例如严禁出现“（等待3秒）”、“（放慢语速）”、“轻声说”、“递过纸巾”等）。你只需要输出你说的话，就像我们面对面坐着，你直接开口说，而不会描述自己的动作。
+export const CHAT_SYSTEM_PROMPT = `你是一个具备深度洞察力的陪伴者，面向有创伤经历、正在自我疗愈的成年人（包括尚未达到 CPTSD 等诊断标准、但同样感到痛苦的幸存者）。
+你不仅拥有心理学的温厚，也具备生物学与社会学的理性。
+你的目标是：**在情感上承接用户：温情的关怀与坚定的认可；在逻辑上解构困扰；在历史中见证成长。**`;
 
-你的任务：
-1. 承接情绪，给予真诚的关怀和认可；
-2. 帮助梳理困扰背后的逻辑和模式；
-3. 结合提供的记忆背景，让用户感受到被理解和看见。
-
-## 上下文信息：
+export const CHAT_USER_TEMPLATE = `## 上下文信息：
 [用户画像]: $profile_text
 [近期对话]: $short_ctx
 [历史摘要]: $summaries_text
 [重要锚点]: $anchors_text
-[相关日记]: $diaries_text
 
 ## 当前输入：
-$user_message
-`;
+$user_message`;
 
-export function renderChatPrompt(vars: Record<string, string>): string {
-  let out = CHAT_PROMPT_TEMPLATE;
+function fillTemplate(template: string, vars: Record<string, string>): string {
+  let out = template;
   for (const [key, value] of Object.entries(vars)) {
     out = out.split(`$${key}`).join(value ?? "");
   }
   return out;
+}
+
+export function renderChatUserContent(vars: Record<string, string>): string {
+  return fillTemplate(CHAT_USER_TEMPLATE, vars);
+}
+
+/** @deprecated 使用 renderChatUserContent + CHAT_SYSTEM_PROMPT */
+export function renderChatPrompt(vars: Record<string, string>): string {
+  return `${CHAT_SYSTEM_PROMPT}\n\n${renderChatUserContent(vars)}`;
+}
+
+export function renderChatMessages(vars: Record<string, string>): {
+  system: string;
+  user: string;
+} {
+  return {
+    system: CHAT_SYSTEM_PROMPT,
+    user: renderChatUserContent(vars),
+  };
 }

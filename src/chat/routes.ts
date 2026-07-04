@@ -2,8 +2,10 @@ import type { FastifyInstance } from "fastify";
 import { config } from "../config.js";
 import { requireUser } from "../auth/middleware.js";
 import { query } from "../db.js";
+import { buildChatStreamRequestBody } from "../llm/openrouter.js";
+import { resolveChatModel } from "./model-router.js";
 import {
-  buildMemoryPrompt,
+  buildChatMessages,
   ensureDefaultProfile,
   extractLastUserMessage,
   insertAssistantMessage,
@@ -71,21 +73,32 @@ export async function registerChatRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(502).send({ detail: `Prepare user message failed: ${msg}` });
     }
 
-    let prompt: string;
+    let chatMessages: { system: string; user: string };
     try {
-      prompt = await buildMemoryPrompt(userId, userMessage);
+      chatMessages = await buildChatMessages(userId, userMessage);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       return reply.code(502).send({ detail: `RAG context failed: ${msg}` });
     }
 
+    const modelChoice = resolveChatModel(userMessage);
+
     request.log.info(
       {
         userId,
         userMessageId,
-        model: config.openrouterChatModel,
+        route: modelChoice.route,
+        routeReason: modelChoice.reason,
+        model: modelChoice.model,
+        maxTokens: config.openrouterChatMaxTokens,
+        temperature: config.openrouterChatTemperature,
+        reasoningEnabled: modelChoice.reasoning,
+        reasoningEffort: modelChoice.reasoning
+          ? config.openrouterChatReasoningEffort
+          : undefined,
         userMessage,
-        prompt,
+        systemPrompt: chatMessages.system,
+        userPrompt: chatMessages.user,
       },
       "chat stream: model and prompt"
     );
@@ -96,11 +109,18 @@ export async function registerChatRoutes(app: FastifyInstance): Promise<void> {
         Authorization: `Bearer ${config.openrouterApiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: config.openrouterChatModel,
-        stream: true,
-        messages: [{ role: "user", content: prompt }],
-      }),
+      body: JSON.stringify(
+        buildChatStreamRequestBody(
+          [
+            { role: "system", content: chatMessages.system },
+            { role: "user", content: chatMessages.user },
+          ],
+          {
+            model: modelChoice.model,
+            reasoning: modelChoice.reasoning,
+          }
+        )
+      ),
     });
 
     if (!upstreamRes.ok || !upstreamRes.body) {

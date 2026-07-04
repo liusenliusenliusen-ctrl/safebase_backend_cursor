@@ -5,7 +5,7 @@ import { config } from "../config.js";
 const DEFAULT_PROMPT_TEMPLATES: Record<string, string> = {
   daily_summary: `请为下面这一天的对话写一个温柔、简要的情绪与主题摘要：
 $convo_text`,
-  profile_update: `你是一位 CPTSD 疗愈方向的助理。请根据下面「近期日摘要」和「近期对话片段」，更新该用户的长期画像。
+  profile_update: `你是一位创伤疗愈方向的助理。请根据下面「近期日摘要」和「近期对话片段」，更新该用户的长期画像。
 
 要求：输出一份 Markdown，且必须包含以下三个二级标题（顺序不可变）：
 ## 核心画像

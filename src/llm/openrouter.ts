@@ -1,5 +1,100 @@
 import { config } from "../config.js";
 
+export type ChatCompletionMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
+function openRouterHeaders(): Record<string, string> {
+  return {
+    Authorization: `Bearer ${config.openrouterApiKey}`,
+    "Content-Type": "application/json",
+  };
+}
+
+function attachReasoning(
+  body: Record<string, unknown>,
+  enabled: boolean,
+  effort?: string
+): void {
+  if (!enabled) return;
+  body.reasoning = {
+    effort: effort ?? config.openrouterChatReasoningEffort,
+    exclude: true,
+  };
+}
+
+export function buildChatStreamRequestBody(
+  messages: ChatCompletionMessage[],
+  opts?: {
+    model?: string;
+    reasoning?: boolean;
+    reasoningEffort?: string;
+  }
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    model: opts?.model ?? config.openrouterChatModelDeep,
+    stream: true,
+    messages,
+    max_tokens: config.openrouterChatMaxTokens,
+    temperature: config.openrouterChatTemperature,
+  };
+  attachReasoning(body, opts?.reasoning ?? false, opts?.reasoningEffort);
+  return body;
+}
+
+/** 非流式补全（用于内部分析 pass） */
+export async function completeChatCompletion(
+  messages: ChatCompletionMessage[],
+  opts?: {
+    maxTokens?: number;
+    temperature?: number;
+    reasoning?: boolean;
+  }
+): Promise<string> {
+  if (!config.openrouterApiKey.trim()) {
+    throw new Error("请配置 OPENROUTER_API_KEY 以使用对话接口。");
+  }
+  const body: Record<string, unknown> = {
+    model: config.openrouterChatModel,
+    stream: false,
+    messages,
+    max_tokens: opts?.maxTokens ?? config.openrouterChatMaxTokens,
+    temperature: opts?.temperature ?? config.openrouterChatTemperature,
+  };
+  attachReasoning(body, opts?.reasoning ?? false);
+
+  const res = await fetch(`${config.openrouterBaseUrl}/chat/completions`, {
+    method: "POST",
+    headers: openRouterHeaders(),
+    body: JSON.stringify(body),
+  });
+  const raw = await res.text();
+  if (res.status === 401) {
+    throw new Error("OpenRouter API 鉴权失败（401）。请检查 OPENROUTER_API_KEY。");
+  }
+  if (!res.ok) {
+    throw new Error(`OpenRouter chat HTTP ${res.status}: ${raw.slice(0, 400)}`);
+  }
+  let data: {
+    choices?: { message?: { content?: string } }[];
+    error?: { message?: string };
+  };
+  try {
+    data = JSON.parse(raw) as typeof data;
+  } catch {
+    throw new Error(`OpenRouter chat invalid JSON: ${raw.slice(0, 400)}`);
+  }
+  if (data.error?.message) {
+    throw new Error(`OpenRouter chat error: ${data.error.message.slice(0, 400)}`);
+  }
+  const content = data.choices?.[0]?.message?.content?.trim();
+  if (!content) {
+    throw new Error("OpenRouter chat returned empty content");
+  }
+  return content;
+}
+
 export async function getEmbedding(text: string): Promise<number[]> {
   if (!config.openrouterApiKey.trim()) {
     throw new Error("请配置 OPENROUTER_API_KEY 以使用向量接口。");
@@ -13,10 +108,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
   }
   const res = await fetch(`${config.openrouterBaseUrl}/embeddings`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.openrouterApiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: openRouterHeaders(),
     body: JSON.stringify(payload),
   });
   const raw = await res.text();
@@ -45,10 +137,7 @@ export async function streamChatCompletion(prompt: string): Promise<string> {
   }
   const res = await fetch(`${config.openrouterBaseUrl}/chat/completions`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.openrouterApiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: openRouterHeaders(),
     body: JSON.stringify({
       model: config.openrouterChatModel,
       messages: [{ role: "user", content: prompt }],

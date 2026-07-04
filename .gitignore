@@ -1,5 +1,6 @@
 # 环境与密钥
 .env
+backend.env
 node_modules/
 dist/
 

@@ -72,6 +72,17 @@ export async function registerChatRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(502).send({ detail: `RAG context failed: ${msg}` });
     }
 
+    request.log.info(
+      {
+        userId,
+        userMessageId,
+        model: config.openrouterChatModel,
+        userMessage,
+        prompt,
+      },
+      "chat stream: model and prompt"
+    );
+
     const upstreamRes = await fetch(`${config.openrouterBaseUrl}/chat/completions`, {
       method: "POST",
       headers: {

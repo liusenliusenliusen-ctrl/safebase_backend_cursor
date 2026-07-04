@@ -35,6 +35,8 @@ psql "postgresql://postgres:postgres@127.0.0.1:5433/safebase"
 
 用户数据在 **`public.users`**；Schema 见 `sql/migrations/`。
 
+对话调试：每次 `/api/chat/stream` 在日志输出 `chat stream: model and prompt`（含 `model`、`userMessage`、完整 `prompt`）；生产环境 `pm2 logs safebase-backend`。
+
 ## 批处理（cron）
 
 ```bash

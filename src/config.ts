@@ -42,6 +42,12 @@ function envBool(name: string, fallback: boolean): boolean {
   return fallback;
 }
 
+function normalizeChatProvider(raw: string | undefined): "openrouter" | "deepseek" {
+  const v = raw?.trim().toLowerCase();
+  if (v === "deepseek") return "deepseek";
+  return "openrouter";
+}
+
 export const config = {
   root,
   appName: process.env.APP_NAME ?? "Trauma Healing Companion Backend",
@@ -53,6 +59,20 @@ export const config = {
   ),
   jwtSecret: process.env.JWT_SECRET ?? "",
   adminSecret: process.env.ADMIN_SECRET ?? "",
+  /** 对话通道：openrouter | deepseek（默认 deepseek；向量仍走 OpenRouter） */
+  llmChatProvider: normalizeChatProvider(
+    process.env.LLM_CHAT_PROVIDER ?? "deepseek"
+  ),
+  deepseekApiKey: process.env.DEEPSEEK_API_KEY ?? "",
+  deepseekBaseUrl: (
+    process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com"
+  ).replace(/\/$/, ""),
+  /** 官方 API 深度轮（thinking）：默认 deepseek-reasoner */
+  deepseekChatModelDeep:
+    process.env.DEEPSEEK_CHAT_MODEL_DEEP ?? "deepseek-reasoner",
+  /** 官方 API 快轨：默认 deepseek-chat */
+  deepseekChatModelFast:
+    process.env.DEEPSEEK_CHAT_MODEL_FAST ?? "deepseek-chat",
   openrouterApiKey: process.env.OPENROUTER_API_KEY ?? "",
   openrouterBaseUrl: (
     process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1"
@@ -66,7 +86,12 @@ export const config = {
   openrouterChatModelFast:
     process.env.OPENROUTER_CHAT_MODEL_FAST ?? "deepseek/deepseek-chat",
   openrouterChatDeepMinChars: envInt("OPENROUTER_CHAT_DEEP_MIN_CHARS", 300),
-  openrouterChatMaxTokens: envInt("OPENROUTER_CHAT_MAX_TOKENS", 3072),
+  /** 深度轮（非 intake）与兼容旧 env */
+  openrouterChatMaxTokens: envInt("OPENROUTER_CHAT_MAX_TOKENS", 8192),
+  /** 长叙述 intake：R1 + reasoning，需更大总预算 */
+  openrouterChatMaxTokensDeep: envInt("OPENROUTER_CHAT_MAX_TOKENS_DEEP", 16384),
+  /** 快轨 Chat */
+  openrouterChatMaxTokensFast: envInt("OPENROUTER_CHAT_MAX_TOKENS_FAST", 3072),
   openrouterChatTemperature: envFloat("OPENROUTER_CHAT_TEMPERATURE", 0.65),
   /** 流式对话是否启用 OpenRouter reasoning（exclude=true 时不返回思考链） */
   openrouterChatReasoningEnabled: envBool("OPENROUTER_CHAT_REASONING", true),

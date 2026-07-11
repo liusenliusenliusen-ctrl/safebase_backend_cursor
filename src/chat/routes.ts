@@ -2,7 +2,14 @@ import type { FastifyInstance } from "fastify";
 import { config } from "../config.js";
 import { requireUser } from "../auth/middleware.js";
 import { query } from "../db.js";
-import { buildChatStreamRequestBody } from "../llm/openrouter.js";
+import {
+  assertChatProviderConfigured,
+  assertEmbeddingConfigured,
+  buildChatStreamRequestBody,
+  getChatCompletionsUrl,
+  getChatStreamHeaders,
+  getLlmChatProvider,
+} from "../llm/openrouter.js";
 import { resolveChatModel } from "./model-router.js";
 import {
   buildChatMessages,
@@ -45,8 +52,18 @@ export async function registerChatRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ detail: "Missing user message" });
     }
 
-    if (!config.openrouterApiKey.trim()) {
-      return reply.code(500).send({ detail: "OPENROUTER_API_KEY is not set" });
+    try {
+      assertEmbeddingConfigured();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return reply.code(500).send({ detail: msg });
+    }
+
+    try {
+      assertChatProviderConfigured();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return reply.code(500).send({ detail: msg });
     }
 
     const owned = await query(
@@ -73,25 +90,32 @@ export async function registerChatRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(502).send({ detail: `Prepare user message failed: ${msg}` });
     }
 
+    const modelChoice = resolveChatModel(userMessage);
+
     let chatMessages: { system: string; user: string };
     try {
-      chatMessages = await buildChatMessages(userId, userMessage);
+      chatMessages = await buildChatMessages(userId, userMessage, {
+        useIntakeTask: modelChoice.useIntakeTask,
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       return reply.code(502).send({ detail: `RAG context failed: ${msg}` });
     }
-
-    const modelChoice = resolveChatModel(userMessage);
 
     request.log.info(
       {
         userId,
         userMessageId,
         route: modelChoice.route,
+        promptMode: modelChoice.promptMode,
+        chatProvider: getLlmChatProvider(),
         routeReason: modelChoice.reason,
         model: modelChoice.model,
-        maxTokens: config.openrouterChatMaxTokens,
-        temperature: config.openrouterChatTemperature,
+        maxTokens: modelChoice.maxTokens,
+        useIntakeTask: modelChoice.useIntakeTask,
+        temperature: modelChoice.reasoning
+          ? undefined
+          : config.openrouterChatTemperature,
         reasoningEnabled: modelChoice.reasoning,
         reasoningEffort: modelChoice.reasoning
           ? config.openrouterChatReasoningEffort
@@ -103,12 +127,9 @@ export async function registerChatRoutes(app: FastifyInstance): Promise<void> {
       "chat stream: model and prompt"
     );
 
-    const upstreamRes = await fetch(`${config.openrouterBaseUrl}/chat/completions`, {
+    const upstreamRes = await fetch(getChatCompletionsUrl(), {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.openrouterApiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers: getChatStreamHeaders(),
       body: JSON.stringify(
         buildChatStreamRequestBody(
           [
@@ -118,6 +139,7 @@ export async function registerChatRoutes(app: FastifyInstance): Promise<void> {
           {
             model: modelChoice.model,
             reasoning: modelChoice.reasoning,
+            maxTokens: modelChoice.maxTokens,
           }
         )
       ),

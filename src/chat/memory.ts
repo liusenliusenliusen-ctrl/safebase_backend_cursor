@@ -22,7 +22,8 @@ function formatShortCtx(rows: { role: string; content: string }[]): string {
 
 export async function buildChatMessages(
   userId: string,
-  userMessage: string
+  userMessage: string,
+  opts?: { useIntakeTask?: boolean }
 ): Promise<{ system: string; user: string }> {
   const profileRes = await query<{ content: string }>(
     `SELECT content FROM public.profiles WHERE user_id = $1::uuid`,
@@ -77,6 +78,7 @@ export async function buildChatMessages(
     summaries_text,
     anchors_text,
     user_message: userMessage,
+    useIntakeTask: opts?.useIntakeTask ?? false,
   });
 }
 

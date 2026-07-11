@@ -54,19 +54,18 @@ npm run tasks -- profiles anchors
 |------|------|
 | `DATABASE_URL` | `postgresql://postgres:postgres@127.0.0.1:5433/trauma_heal`（Docker 宿主机端口 5433） |
 | `JWT_SECRET` | JWT 签名（**必填**，否则注册/登录 500） |
-| `OPENROUTER_API_KEY` | 对话与 embedding |
-| `OPENROUTER_CHAT_MODEL` | 兼容旧配置；路由关闭时等同深度模型 |
-| `OPENROUTER_CHAT_ROUTING` | 启用双模型路由，默认 `true` |
-| `OPENROUTER_CHAT_MODEL_DEEP` | 深度轮模型，默认 `deepseek/deepseek-r1` |
-| `OPENROUTER_CHAT_MODEL_FAST` | 快轨模型，默认 `deepseek/deepseek-chat` |
+| `LLM_CHAT_PROVIDER` | 对话 API：`deepseek`（官方，**默认**）或 `openrouter` |
+| `DEEPSEEK_API_KEY` | DeepSeek 官方 Key（`LLM_CHAT_PROVIDER=deepseek` 时必填） |
+| `DEEPSEEK_CHAT_MODEL_DEEP` | 深度轮，默认 `deepseek-reasoner`（≈ 原 R1 + thinking） |
+| `DEEPSEEK_CHAT_MODEL_FAST` | 快轨，默认 `deepseek-chat` |
+| `OPENROUTER_API_KEY` | **向量 embedding 必填**；对话仅在 `openrouter` 提供商时使用 |
+| `OPENROUTER_CHAT_ROUTING` | 双模型路由（深度 / 快轨），默认 `true` |
 | `OPENROUTER_CHAT_DEEP_MIN_CHARS` | 触发深度轮的最小字数，默认 `300` |
-| `OPENROUTER_CHAT_MAX_TOKENS` | 单轮回复上限，默认 `3072` |
-| `OPENROUTER_CHAT_TEMPERATURE` | 采样温度，默认 `0.65` |
-| `OPENROUTER_CHAT_REASONING` | 深度轮流式启用 reasoning，默认 `true`（`exclude=true` 思考不可见） |
-| `OPENROUTER_CHAT_REASONING_EFFORT` | reasoning 强度，默认 `max` |
-| `OPENROUTER_CHAT_TWO_PASS` | 回复前内部分析 pass，默认 `false`（已弃用） |
-| `OPENROUTER_CHAT_ANALYSIS_MAX_TOKENS` | 内部分析 token 上限，默认 `1200` |
-| `OPENROUTER_CHAT_ANALYSIS_TEMPERATURE` | 内部分析温度，默认 `0.4` |
+| `OPENROUTER_CHAT_MAX_TOKENS` | 深度轮（非 intake）token 上限，默认 `8192` |
+| `OPENROUTER_CHAT_MAX_TOKENS_DEEP` | intake 长叙述 token 上限，默认 `16384` |
+| `OPENROUTER_CHAT_MAX_TOKENS_FAST` | 快轨 token 上限，默认 `3072` |
+| `OPENROUTER_CHAT_TEMPERATURE` | 快轨采样温度，默认 `0.65` |
+| `OPENROUTER_CHAT_REASONING` | 仅 OpenRouter 深度轮 reasoning，DeepSeek 用 reasoner 即可 |
 | `OPENROUTER_EMBEDDING_MODEL` | 建议 `openai/text-embedding-3-large` |
 | `ADMIN_SECRET` | 管理后台密钥（请求头 `X-Admin-Key`） |
 

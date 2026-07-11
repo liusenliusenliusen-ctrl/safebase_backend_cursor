@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { config } from "./config.js";
+import { getChatModelIds, getLlmChatProvider } from "./llm/chat-provider.js";
 import { registerAdminRoutes } from "./admin/routes.js";
 import { registerAuthRoutes } from "./auth/routes.js";
 import { registerChatRoutes } from "./chat/routes.js";
@@ -28,14 +29,27 @@ await registerAccountRoutes(app);
 await registerAdminRoutes(app);
 
 app.addHook("onReady", async () => {
-  if (config.openrouterApiKey.trim()) {
+  const provider = getLlmChatProvider();
+  const models = getChatModelIds();
+  if (provider === "deepseek" && config.deepseekApiKey.trim()) {
     app.log.info(
-      "LLM OpenRouter chat=%s embedding=%s",
-      config.openrouterChatModel,
+      "LLM chat provider=deepseek deep=%s fast=%s embedding(OpenRouter)=%s",
+      models.deep,
+      models.fast,
+      config.openrouterEmbeddingModel
+    );
+  } else if (config.openrouterApiKey.trim()) {
+    app.log.info(
+      "LLM chat provider=openrouter deep=%s fast=%s embedding=%s",
+      models.deep,
+      models.fast,
       config.openrouterEmbeddingModel
     );
   } else {
-    app.log.warn("未配置 OPENROUTER_API_KEY：对话与夜间批处理将不可用。");
+    app.log.warn("未配置对话 API Key：请设置 DEEPSEEK_API_KEY 或 OPENROUTER_API_KEY。");
+  }
+  if (!config.openrouterApiKey.trim()) {
+    app.log.warn("未配置 OPENROUTER_API_KEY：向量与记忆检索将不可用。");
   }
   app.log.info("API: /api/auth, /api/messages, /api/chat/stream, /api/diaries, /api/account, /api/admin");
 });

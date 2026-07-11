@@ -102,18 +102,22 @@ async function main(): Promise<void> {
   }
 
   const route = resolveChatModel(USER_MESSAGE);
-  console.log(`路由: ${route.route} → ${route.model} (${route.reason})`);
-  console.log(`reasoning: ${route.reasoning}`);
+  console.log(`路由: ${route.route} / ${route.promptMode} → ${route.model} (${route.reason})`);
+  console.log(`reasoning: ${route.reasoning}, max_tokens: ${route.maxTokens}, intake任务: ${route.useIntakeTask}`);
 
-  const built = await buildChatMessages(userId, USER_MESSAGE);
+  const built = await buildChatMessages(userId, USER_MESSAGE, {
+    useIntakeTask: route.useIntakeTask,
+  });
   const hasOldAnalysis = built.user.includes("内部分析");
   const hasSimpleCtx = built.user.includes("## 上下文信息：");
+  const hasIntakeTask = built.user.includes("## 本轮回应方式");
   console.log(`user prompt 含「## 上下文信息：」: ${hasSimpleCtx}`);
+  console.log(`user prompt 含 intake 任务块: ${hasIntakeTask}`);
   console.log(`user prompt 不含「内部分析」: ${!hasOldAnalysis}`);
   console.log("\n--- system prompt ---");
   console.log(built.system);
-  console.log("\n--- user prompt (前 800 字) ---");
-  console.log(built.user.slice(0, 800));
+  console.log("\n--- user prompt (前 1200 字) ---");
+  console.log(built.user.slice(0, 1200));
   if (!hasSimpleCtx || hasOldAnalysis) {
     process.exit(1);
   }

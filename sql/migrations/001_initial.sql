@@ -52,12 +52,15 @@ create table public.diaries (
   user_id uuid not null references public.users (id) on delete cascade,
   title text not null default '',
   content text not null default '',
+  entry_date date not null default ((now() at time zone 'utc')::date),
   embedding vector(2048),
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint uq_diaries_user_entry_date unique (user_id, entry_date)
 );
 
 create index diaries_user_updated_idx on public.diaries (user_id, updated_at desc);
+create index diaries_user_entry_date_idx on public.diaries (user_id, entry_date desc);
 
 create table public.summaries (
   id bigint generated always as identity primary key,
@@ -230,11 +233,17 @@ create or replace function public.match_diaries(
   query_embedding vector(2048),
   match_count int default 2
 )
-returns table (id bigint, title text, content text, updated_at timestamptz)
+returns table (
+  id bigint,
+  title text,
+  content text,
+  updated_at timestamptz,
+  entry_date date
+)
 language sql
 stable
 as $$
-  select d.id, d.title, d.content, d.updated_at
+  select d.id, d.title, d.content, d.updated_at, d.entry_date
   from public.diaries d
   where d.user_id = p_user_id
     and d.embedding is not null

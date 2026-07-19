@@ -31,15 +31,24 @@ function truncateDiaryContent(content: string, maxChars: number): string {
 }
 
 function formatMatchedDiaries(
-  rows: { title: string | null; content: string; updated_at: Date }[]
+  rows: {
+    title: string | null;
+    content: string;
+    updated_at: Date;
+    entry_date?: Date | string | null;
+  }[]
 ): string {
   if (!rows.length) return "";
   return rows
     .map((r, i) => {
-      const date = r.updated_at.toISOString().slice(0, 10);
-      const title = (r.title ?? "").trim() || "无标题";
+      const date =
+        r.entry_date == null
+          ? r.updated_at.toISOString().slice(0, 10)
+          : typeof r.entry_date === "string"
+            ? r.entry_date.slice(0, 10)
+            : r.entry_date.toISOString().slice(0, 10);
       const body = truncateDiaryContent(r.content ?? "", DIARY_SNIPPET_MAX_CHARS);
-      return `--- 日记 ${i + 1}（${date} · ${title}）---\n${body}`;
+      return `--- 日记 ${i + 1}（${date}）---\n${body}`;
     })
     .join("\n\n");
 }
@@ -86,8 +95,9 @@ export async function buildChatMessages(
     title: string | null;
     content: string;
     updated_at: Date;
+    entry_date: Date | null;
   }>(
-    `SELECT id, title, content, updated_at
+    `SELECT id, title, content, updated_at, entry_date
      FROM public.match_diaries($1::uuid, $2::vector, $3)`,
     [userId, embLit, DIARY_MATCH_COUNT]
   );

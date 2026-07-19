@@ -86,9 +86,11 @@ export const config = {
   openrouterChatModelFast:
     process.env.OPENROUTER_CHAT_MODEL_FAST ?? "deepseek/deepseek-chat",
   openrouterChatDeepMinChars: envInt("OPENROUTER_CHAT_DEEP_MIN_CHARS", 300),
-  /** 深度轮（非 intake）与兼容旧 env */
+  /** @deprecated 已取消 user 侧 intake 任务块，保留 env 以免旧配置报错 */
+  openrouterChatIntakeMinChars: envInt("OPENROUTER_CHAT_INTAKE_MIN_CHARS", 800),
+  /** 深度轮 token 上限（含长叙述） */
   openrouterChatMaxTokens: envInt("OPENROUTER_CHAT_MAX_TOKENS", 8192),
-  /** 长叙述 intake：R1 + reasoning，需更大总预算 */
+  /** 深度轮实际使用的更大预算（路由 deep 时优先） */
   openrouterChatMaxTokensDeep: envInt("OPENROUTER_CHAT_MAX_TOKENS_DEEP", 16384),
   /** 快轨 Chat */
   openrouterChatMaxTokensFast: envInt("OPENROUTER_CHAT_MAX_TOKENS_FAST", 3072),

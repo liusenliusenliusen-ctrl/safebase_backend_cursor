@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { getChatModelIds } from "../llm/chat-provider.js";
 
 export type ChatModelRoute = "deep" | "fast";
-export type ChatPromptMode = "fast" | "deep" | "intake";
+export type ChatPromptMode = "fast" | "deep";
 
 export type ResolvedChatModel = {
   route: ChatModelRoute;
@@ -11,6 +11,7 @@ export type ResolvedChatModel = {
   /** OpenRouter 深度轮 reasoning；DeepSeek 深度轮为 reasoner 模型 */
   reasoning: boolean;
   maxTokens: number;
+  /** @deprecated 已取消 user 侧 intake 任务；恒为 false，保留字段兼容日志 */
   useIntakeTask: boolean;
   reason: string;
 };
@@ -37,42 +38,8 @@ const DEPTH_SIGNALS = [
   "2025",
 ];
 
-/** 急性 distress：走 deep 模型但不用长文 intake 模板 */
-const ACUTE_DISTRESS_SIGNALS = [
-  "闪回",
-  "喘不上",
-  "想死",
-  "自杀",
-  "自残",
-  "割腕",
-  "活不下去",
-  "撑不住",
-  "马上崩溃",
-  "现在就要",
-  "此刻",
-  "当下",
-];
-
 function countDepthSignals(text: string): number {
   return DEPTH_SIGNALS.filter((s) => text.includes(s)).length;
-}
-
-function isAcuteDistress(text: string): boolean {
-  return ACUTE_DISTRESS_SIGNALS.some((s) => text.includes(s));
-}
-
-function isNarrativeIntake(text: string): boolean {
-  const trimmed = text.trim();
-  if (trimmed.length < config.openrouterChatDeepMinChars) return false;
-  if (isAcuteDistress(trimmed)) return false;
-
-  const sentences = trimmed
-    .split(/[。！？\n]/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 8);
-  const richTimeline = countDepthSignals(trimmed) >= 2;
-
-  return sentences.length >= 3 || richTimeline;
 }
 
 function deepReasoningEnabled(): boolean {
@@ -87,17 +54,14 @@ export function resolveChatModel(userMessage: string): ResolvedChatModel {
   const { deep: modelDeep, fast: modelFast } = getChatModelIds();
 
   if (!config.openrouterChatRoutingEnabled) {
-    const intake = isNarrativeIntake(userMessage);
     return {
       route: "deep",
-      promptMode: intake ? "intake" : "deep",
+      promptMode: "deep",
       model: modelDeep,
       reasoning: deepReasoningEnabled(),
-      maxTokens: intake
-        ? config.openrouterChatMaxTokensDeep
-        : config.openrouterChatMaxTokens,
-      useIntakeTask: intake,
-      reason: intake ? "routing_disabled,intake" : "routing_disabled",
+      maxTokens: config.openrouterChatMaxTokensDeep,
+      useIntakeTask: false,
+      reason: "routing_disabled",
     };
   }
 
@@ -105,27 +69,23 @@ export function resolveChatModel(userMessage: string): ResolvedChatModel {
   const len = text.length;
   const signals = countDepthSignals(text);
 
-  const longIntake = len >= config.openrouterChatDeepMinChars;
+  const longMessage = len >= config.openrouterChatDeepMinChars;
   const richTimeline = signals >= 2;
-  const useDeep = longIntake || richTimeline;
-  const intake = useDeep && isNarrativeIntake(text);
+  const useDeep = longMessage || richTimeline;
 
   if (useDeep) {
     const parts: string[] = [];
-    if (longIntake) parts.push(`length>=${config.openrouterChatDeepMinChars}`);
+    if (longMessage) parts.push(`length>=${config.openrouterChatDeepMinChars}`);
     if (richTimeline) parts.push(`signals=${signals}`);
-    if (intake) parts.push("intake");
-    if (isAcuteDistress(text)) parts.push("acute");
 
     return {
       route: "deep",
-      promptMode: intake ? "intake" : "deep",
+      promptMode: "deep",
       model: modelDeep,
       reasoning: deepReasoningEnabled(),
-      maxTokens: intake
-        ? config.openrouterChatMaxTokensDeep
-        : config.openrouterChatMaxTokens,
-      useIntakeTask: intake,
+      // 深度轮统一给足预算；篇幅由 system 按复杂度自然展开，不再靠 intake 任务块拉长
+      maxTokens: config.openrouterChatMaxTokensDeep,
+      useIntakeTask: false,
       reason: parts.join(","),
     };
   }

@@ -14,10 +14,34 @@ export function extractLastUserMessage(
   return "";
 }
 
+/** 单篇日记注入上限，避免撑爆上下文 */
+const DIARY_SNIPPET_MAX_CHARS = 900;
+const DIARY_MATCH_COUNT = 2;
+
 function formatShortCtx(rows: { role: string; content: string }[]): string {
   return rows
     .map((m) => `${m.role === "user" ? "用户" : "AI"}: ${m.content}`)
     .join("\n");
+}
+
+function truncateDiaryContent(content: string, maxChars: number): string {
+  const t = content.trim();
+  if (t.length <= maxChars) return t;
+  return `${t.slice(0, maxChars)}…`;
+}
+
+function formatMatchedDiaries(
+  rows: { title: string | null; content: string; updated_at: Date }[]
+): string {
+  if (!rows.length) return "";
+  return rows
+    .map((r, i) => {
+      const date = r.updated_at.toISOString().slice(0, 10);
+      const title = (r.title ?? "").trim() || "无标题";
+      const body = truncateDiaryContent(r.content ?? "", DIARY_SNIPPET_MAX_CHARS);
+      return `--- 日记 ${i + 1}（${date} · ${title}）---\n${body}`;
+    })
+    .join("\n\n");
 }
 
 export async function buildChatMessages(
@@ -42,6 +66,7 @@ export async function buildChatMessages(
 
   let summaries_text = "";
   let anchors_text = "";
+  let diaries_text = "";
 
   const sums = await query<{ summary_date: Date; content: string }>(
     `SELECT summary_date, content FROM public.match_summaries_daily($1::uuid, $2::vector, $3)`,
@@ -56,6 +81,16 @@ export async function buildChatMessages(
      FROM public.match_anchors($1::uuid, $2::vector, $3)`,
     [userId, embLit, 1]
   );
+  const diariesPromise = query<{
+    id: number;
+    title: string | null;
+    content: string;
+    updated_at: Date;
+  }>(
+    `SELECT id, title, content, updated_at
+     FROM public.match_diaries($1::uuid, $2::vector, $3)`,
+    [userId, embLit, DIARY_MATCH_COUNT]
+  );
 
   if (sums.rows.length) {
     summaries_text = sums.rows
@@ -63,7 +98,7 @@ export async function buildChatMessages(
       .join("\n");
   }
 
-  const anchors = await anchorsPromise;
+  const [anchors, diaries] = await Promise.all([anchorsPromise, diariesPromise]);
   if (anchors.rows[0]) {
     const a = anchors.rows[0];
     anchors_text =
@@ -71,12 +106,14 @@ export async function buildChatMessages(
       `最初看法：${a.initial_thought ?? ""}\n` +
       `当前看法：${a.current_thought ?? ""}\n`;
   }
+  diaries_text = formatMatchedDiaries(diaries.rows);
 
   return renderChatMessages({
     profile_text,
     short_ctx,
     summaries_text,
     anchors_text,
+    diaries_text,
     user_message: userMessage,
     useIntakeTask: opts?.useIntakeTask ?? false,
   });
